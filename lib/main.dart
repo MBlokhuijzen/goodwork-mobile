@@ -15,6 +15,7 @@ import 'package:goodwork/repositories/auth_repository.dart';
 import 'package:goodwork/repositories/task_repository.dart';
 import 'package:goodwork/screens/connection_request_screen.dart';
 import 'package:goodwork/screens/home_screen.dart';
+import 'package:goodwork/screens/loading_screen.dart';
 import 'package:goodwork/screens/login_screen.dart';
 import 'package:goodwork/screens/set_app_url_screen.dart';
 import 'package:goodwork/widgets/side_menu.dart';
@@ -42,6 +43,7 @@ class _GoodworkAppState extends State<GoodworkApp> {
   StreamSubscription<ConnectivityResult> _connectivitySubscription;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AuthBloc authBloc = AuthBloc(AuthRepository());
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -91,6 +93,20 @@ class _GoodworkAppState extends State<GoodworkApp> {
     }
   }
 
+  void showErrorMessage(String message) {
+    final SnackBar snackBar = SnackBar(
+      content: Text(
+        '$message',
+        style: TextStyle(
+          fontSize: 20,
+        ),
+      ),
+      duration: Duration(seconds: 5),
+      backgroundColor: Colors.red,
+    );
+    _scaffoldKey.currentState.showSnackBar(snackBar);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -101,27 +117,38 @@ class _GoodworkAppState extends State<GoodworkApp> {
       ),
       home: BlocProvider.value(
         value: authBloc,
-        child: BlocBuilder(
+        child: BlocListener(
           bloc: authBloc,
-          builder: (BuildContext context, AuthState state) {
-            if (state is UserLoaded) {
+          listener: (BuildContext context, AuthState state) {
+            if (state is UserNotFound) {
+              showErrorMessage('User not found');
+            } else if (state is InitialAuthState) {
+              _loggedIn = false;
+            }
+          },
+          child: BlocBuilder(
+            bloc: authBloc,
+            builder: (BuildContext context, AuthState state) {
+              if (state is UserLoaded) {
+                return Scaffold(
+                  extendBody: true,
+                  appBar: AppBar(
+                    elevation: 0,
+                    title: const Text('Goodwork'),
+                  ),
+                  backgroundColor: Colors.grey[200],
+                  endDrawer: showDrawerMenu(state.authUser),
+                  body: loadScreen(state),
+                );
+              }
               return Scaffold(
+                key: _scaffoldKey,
                 extendBody: true,
-                appBar: AppBar(
-                  elevation: 0,
-                  title: const Text('Goodwork'),
-                ),
                 backgroundColor: Colors.grey[200],
-                endDrawer: showDrawerMenu(state.authUser),
                 body: loadScreen(state),
               );
-            }
-            return Scaffold(
-              extendBody: true,
-              backgroundColor: Colors.grey[200],
-              body: loadScreen(state),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -180,9 +207,7 @@ class _GoodworkAppState extends State<GoodworkApp> {
 
   Widget showLoadingScreen() {
     return Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-      ),
+      child: LoadingScreen(),
     );
   }
 
